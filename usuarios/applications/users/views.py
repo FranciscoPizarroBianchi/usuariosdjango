@@ -14,12 +14,13 @@ from django.views.generic.edit import (
     FormView
 )
 
-from usuarios.applications.users.functions import code_generator
+from .functions import code_generator
 from .models import User
 from .forms import(
     UserRegisterForm, 
     LoginForm,
-    UpdatePasswordForm
+    UpdatePasswordForm,
+    VerificationForm
 )
 from .functions import code_generator
 
@@ -31,7 +32,7 @@ class UserRegisterView(FormView):
     def form_valid(self, form):
 
         codigo = code_generator()
-        User.objects.create_user(
+        usuario = User.objects.create_user(
             form.cleaned_data['username'],
             form.cleaned_data['email'],
             form.cleaned_data['password1'],
@@ -46,7 +47,8 @@ class UserRegisterView(FormView):
         send_mail(asunto, mensaje, email_remitente, [form.cleaned_data['email'],])
         return HttpResponseRedirect(
             reverse(
-                'users_app:user-login'
+                'users_app:user-verification',
+                kwargs={'pk': usuario.id}
             )
         )
 
@@ -94,3 +96,23 @@ class UpdatePassword(LoginRequiredMixin, FormView):
             usuario.save()
         logout(self.request)
         return super(UpdatePassword, self).form_valid(form)
+
+class CodeVerificationView(FormView):
+    template_name= 'users/verification.html'
+    form_class=VerificationForm
+    success_url= reverse_lazy('users_app:user-login')
+
+    def get_form_kwargs(self):
+        kwarg = super(CodeVerificationView, self).get_form_kwargs()
+        kwarg.update({
+            'pk': self.kwargs['pk']
+        })
+        return kwarg
+
+    def form_valid(self, form):
+        User.objects.filter(
+            id = self.kwargs['pk']
+        ).update(
+            is_active = True
+        )
+        return super(CodeVerificationView,self).form_valid(form)
